@@ -1,0 +1,15 @@
+{
+    // Gebruik IntelliSense om mogelijke attributen te vinden.
+    // Wijs naar bestaande attributen om de bijbehorende beschrijvingen te zien.
+    // Voor meer informatie, zie https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        
+        {
+            "type": "msedge",
+            "request": "launch",
+            "name": "Open index.html",
+            "file": "/workspaces/Retro-game-engine/index.html"
+        }
+    ]
+}
