@@ -11,7 +11,7 @@ window.addEventListener('resize', () => {
 // ----- Loading system ----- \\
 
 const loadPix = {
-  curLoad: [0, 0, 0, 0, 0], // [categoryIdx, subjectIdx, statusIdx, frameIdx, row]
+  curLoad: 0,
   stepIndex: 0,
   stepMax: 4000,
   tempCanvas: null,
@@ -22,7 +22,7 @@ const loadPix = {
   // Start loading a specific frame
   initiate: function (path) {
     this.isLoading = true;
-    this.curLoad[4] = 0; // reset row counter
+    this.curLoad = 0; // reset row counter
     this.stepIndex = 0;
     
     this.path = path;
@@ -74,12 +74,12 @@ const loadPix = {
     //if (!this.pixelFrame || !this.tempCtx) return;
     const pixSize = this.pixSize;
     const map = this.pixelFrame.map;
-    if (this.curLoad[4] >= map.length) return;
+    if (this.curLoad >= map.length) return;
     
-    this.rowlen = map[this.curLoad[4]].length;
+    this.rowlen = map[this.curLoad].length;
     const step = Math.floor(this.stepMax / this.rowlen);
     
-    const startRow = this.curLoad[4];
+    const startRow = this.curLoad;
     let endRow = startRow + step;
     
     if (endRow > map.length) endRow = map.length;
@@ -100,10 +100,9 @@ const loadPix = {
     }
     
     // Update current row position
-    this.curLoad[4] = endRow;
+    this.curLoad = endRow;
     
-    if (this.curLoad[4] >= map.length) {
-      console.log('why??');
+    if (this.curLoad >= map.length) {
       this.stepIndex = 0;
       const path = this.path;
       this.set(path, this.tempCanvas);
@@ -111,7 +110,7 @@ const loadPix = {
   },
   
   renderLoop: function () {
-    return this.curLoad[4] < this.pixelFrame.map.length;
+    return this.curLoad < this.pixelFrame.map.length;
   },
   
   getImage: function () {
@@ -165,6 +164,7 @@ class World {
   constructor(config){
     this.map = config.data.map;
     this.tileSet = config.data.tileSet;
+    this.portals = config.data.portals;
   }
 
   getTile(path) {
@@ -181,7 +181,11 @@ class World {
     let h = this.map.length;
     for(let i = 0; i < h; i++){
       for(let j = 0; j < w; j++){
-         ctx.drawImage(this.getTile(this.tileSet[this.map[i][j]]), j*64, i*64);
+         if (this.portals[this.map[i][j]]) {
+           ctx.drawImage(this.getTile(this.tileSet[this.portals[this.map[i][j]].tile]), j*64, i*64);
+         } else {
+           ctx.drawImage(this.getTile(this.tileSet[this.map[i][j]]), j*64, i*64);
+         }
       }
     }
   }
@@ -195,6 +199,9 @@ class Player {
   constructor(config){
     this.x = config.x;
     this.y = config.y;
+    this.hitbox = {x: this.x, y: this.y, w: 86, h: 46};
+    this.vx = 0;
+    this.vy = 0;
     this.speed = 4;
     
     this.image = ['sprites','player','idle_south',0];
@@ -312,7 +319,32 @@ class Player {
     this._prevSouth = south;
     this._prevWest = west;
     this._prevEast = east;
-    console.log(this.direction);
+  }
+  updateHitbox() {
+    if (this.direction === 'north' || this.direction === 'south') {
+      this.hitbox.x = this.x + 8; 
+      this.hitbox.y = this.y;
+      this.hitbox.w = 74;
+      this.hitbox.h = 46;
+    }
+    if (this.direction === 'east' || this.direction === 'west') {
+      this.hitbox.x = this.x + 16; 
+      this.hitbox.y = this.y;
+      this.hitbox.w = 52;
+      this.hitbox.h = 48;
+    }
+    if (this.direction === 'northeast' || this.direction === 'southwest') {
+      this.hitbox.x = this.x + 8; 
+      this.hitbox.y = this.y;
+      this.hitbox.w = 60;
+      this.hitbox.h = 48;
+    }
+    if (this.direction === 'northwest' || this.direction === 'southeast') {
+      this.hitbox.x = this.x + 8; 
+      this.hitbox.y = this.y - 6;
+      this.hitbox.w = 60;
+      this.hitbox.h = 48;
+    }
   }
   display(){
 
@@ -325,15 +357,22 @@ class Player {
     else if (this.direction === 'northwest') this.image[2] = 'idle_northwest';
     else if (this.direction === 'northeast') this.image[2] = 'idle_northeast';
 
-    ctx.drawImage(pixelart[this.image[0]][this.image[1]][this.image[2]][this.image[3]], this.x, this.y);
+    if(app.devMode) {
+      ctx.fillStyle = 'red';
+      ctx.fillRect(this.hitbox.x, this.hitbox.y, this.hitbox.w, this.hitbox.h);
+    }
+
+    ctx.drawImage(pixelart[this.image[0]][this.image[1]][this.image[2]][this.image[3]], this.x-64, this.y-46);
   }
   run(){
     this.update();
+    this.updateHitbox();
     this.display();
   }
 }
 
 const app = {
+  devMode: true, // Set to false to hide hitboxes and debug info
   scene: 'loading',
   player: new Player({x: 100, y: 100}),
   map: new World({data: mapdata.map.room.test}),
@@ -367,6 +406,8 @@ const app = {
 function animate() {
   requestAnimationFrame(animate);
   app.run();
+
+  keysTyped = {};
 }
 
 animate();

@@ -10,6 +10,7 @@ let mapdata = {
     room: {
       'test': {
         tileSet: tiles.defualt,
+        portals: {'@': { dest: 'test2', tile: 'b'}},
         map: [
           "aaaaaaaaaaaaabbbbbb",
           "aaaaaaaaaaaaabbbbbb",
@@ -21,8 +22,26 @@ let mapdata = {
           "aaaaaaaaaaaaabbbbbb",
           "aaaaaaaaaaaaabbbbbb",
           "aaaaaaaaaaaaabbbbbb",
+          "aaaaaaaaaaaaabbbbb@",
           "aaaaaaaaaaaaabbbbbb",
-          "aaaaaaaaaaaaabbbbbb",
+        ]
+      },
+      'test2': {
+        tileSet: tiles.defualt,
+        portals: {'@': { dest: 'test', tile: 'b'}},
+        map: [
+          "bbaaaaaaaaaaabbbbbb",
+          "@bbbbbaaaaaaabbbbbb",
+          "aaaaabbbbbaaabbbbbb",
+          "aaaaaaaaabaaabbbbbb",
+          "aaaaaaaaabaaabbbbbb",
+          "aaaaaaaaabaaabbbbbb",
+          "bbbbbbbbbbbbbbbbbbb",
+          "aaaaaaaaabaaabbbbbb",
+          "aaaabbbbbbbbabbbbbb",
+          "aaabbaaaaaababbbbbb",
+          "aabbaaaaaaabbbbbbbb",
+          "aabaaaaaaaaaabbbbbb",
         ]
       }
     }
