@@ -564,6 +564,50 @@ let pixelart = {
         'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
         ]
         }
+    ],
+    portal: [
+      {
+        palette: {
+          'a': 'rgb(255,0,255)',
+          'b': 'rgb(82, 7, 82)',
+          'c': 'rgb(0, 0, 0)',
+          'd': 'rgb(255, 255, 255)',
+        },
+        map: [
+        'cccccccccccccccccccccccccccccccc',
+        'cccccccccccccccccccccccccccccccc',
+        'cccccccccccccccccccccccccccccccc',
+        'cccccaaaccccccaaaccccccaaacccccc',
+        'cccccaaaccccccaaaccccccaaacccccc',
+        'cccccaaaccccccaaaccccccaaacccccc',
+        'cccccbbbbbccccbbbbbccccbbbbbcccc',
+        'cccccbbbbbccccbbbbbccccbbbbbcccc',
+        'cccccbbbbbccccbbbbbccccbbbbbcccc',
+        'cccccaaaaacccaaaaaacccaabaaaaacc',
+        'cccccaaaaacccaaaaaacccaabaaaaacc',
+        'cccccaaaaacccaaaaaacccaabaaaaacc',
+        'cccccaaabbbbbbbbbbaaaaabbbbbbaaa',
+        'cccccaaabbbbbbbbbbbbaaabbbbbbaaa',
+        'cccccaaabbbbbbbbbbbbaaabbbbbbaaa',
+        'cccccbbbaaaaaaaaaaaaaaaaabbbbaaa',
+        'cccccbbbaaaaaaaaaaaaaaaaabbbbaaa',
+        'cccccbbbaaaaaaaaaaaaaaaaabbbbaaa',
+        'cccccaaaaabbbbbbbbbbbaaabbbbbaac',
+        'cccccaaaaabbbbbbbbbbaaabbbbaaaac',
+        'cccccaaaaabbbbbbbbbbbbbbbbbaaaac',
+        'cccccaaabbbbbbbbbbaaaaabbbbbbaaa',
+        'cccccaaabbbbbbbbbbaaaaabbbbbbaaa',
+        'cccccaaabbbbbbbbbbaaaaabbbbbbaaa',
+        'cccccbbbbbccccbbbbbccccbbbbbcccc',
+        'cccccbbbbbccccbbbbbccccbbbbbcccc',
+        'cccccbbbbbccccbbbbbccccbbbbbcccc',
+        'cccccaaaccccccaaaccccccaaacccccc',
+        'cccccaaaccccccaaaccccccaaacccccc',
+        'cccccaaaccccccaaaccccccaaacccccc', 
+        'cccccccccccccccccccccccccccccccc',
+        'cccccccccccccccccccccccccccccccc',
+        ]
+      }
     ]
   }
 };

@@ -59,7 +59,7 @@ const loadPix = {
     }
     return obj; // should be the {palette, map} object
   },
-
+  
   set: function (path, value) {
     let obj = pixelart;
     for (let key of path.slice(0, -1)) {
@@ -128,9 +128,10 @@ let toLoad = [
   ['sprites', 'player', 'idle_southeast', 0],
   ['sprites', 'player', 'idle_northwest', 0],
   ['sprites', 'player', 'idle_northeast', 0],
-
+  
   ['tiles', 'floor_wood', 0],
-  ['tiles', 'grass', 0]
+  ['tiles', 'grass', 0],
+  ['tiles', 'portal', 0],
 ];
 
 let loadIndex = 0;
@@ -163,10 +164,79 @@ function loading() {
 class World {
   constructor(config){
     this.map = config.data.map;
+    this.room = config.room;
     this.tileSet = config.data.tileSet;
     this.portals = config.data.portals;
+    this.width = this.map[0].length * 64;
+    this.height = this.map.length * 64;
+
+    this.camdata = {
+      x: canvas.width / 2,
+      y: canvas.height / 2,
+      lookahead: 46,
+      lerpSpeed: 0.2
+    };
   }
 
+  camera() {
+    let player = app.player.hitbox;
+    this.width = this.map[0].length * 64;
+    this.height = this.map.length * 64;
+
+    let dx = 0,
+      dy = 0;
+    if (player.direction === 'east') dx = this.camdata.lookahead;
+    if (player.direction === 'west') dx = -this.camdata.lookahead;
+    if (player.direction === 'south') dy = this.camdata.lookahead;
+    if (player.direction === 'north') dy = -this.camdata.lookahead;
+    
+    let camTargetX = player.x - canvas.width / 2 + dx;
+    let camTargetY = player.y - canvas.height / 2 + dy;
+    
+    this.camdata.x += (camTargetX - this.camdata.x) * this.camdata.lerpSpeed;
+    this.camdata.y += (camTargetY - this.camdata.y) * this.camdata.lerpSpeed;
+
+    this.camdata.x = Math.max(-64, Math.min(this.camdata.x, this.width - canvas.width));
+    this.camdata.y = Math.max(-64, Math.min(this.camdata.y, this.height - canvas.height));
+    
+    ctx.setTransform(1, 0, 0, 1, -this.camdata.x, -this.camdata.y);
+
+  }
+  
+  loadMap(toMap, atTile, dir) {
+    this.mapdata = mapdata['map']['room'][toMap];
+    this.tileSet = this.mapdata.tileSet;
+    this.map = this.mapdata.map;
+    this.portals = this.mapdata.portals;
+
+    let w = this.map[0].length;
+    let h = this.map.length;
+
+    for(let i = 0; i < h; i++){
+      for(let j = 0; j < w; j++){
+        if (this.map[i][j] === atTile) {
+          const player = app.player.hitbox;
+          if (dir === 'north') {
+            player.x = j*64;
+            player.y = i*64 + 64;
+          } else if (dir === 'south') {
+            player.x = j*64;
+            player.y = i*64 - 46;
+          } else if (dir === 'east') {
+            player.x = j*64 + 64;
+            player.y = i*64;
+          } else if (dir === 'west') {
+            player.x = j*64 - 64;
+            player.y = i*64;
+          }
+          ctx.drawImage(this.getTile(this.tileSet[this.portals[this.map[i][j]].tile]), j*64, i*64);
+        } else {
+          ctx.drawImage(this.getTile(this.tileSet[this.map[i][j]]), j*64, i*64);
+        }
+      }
+    }
+  }
+  
   getTile(path) {
     let obj = pixelart;
     for (let key of path) {
@@ -175,21 +245,42 @@ class World {
     }
     return obj;
   }
-
+  
+  checkPortals(x, y, portaldata, char) {
+    const H_box = app.player.hitbox;
+    const tile = {
+      x: x,
+      y: y,
+      w: 64,
+      h: 64
+    };
+    
+    if(collide.rectToRect(H_box, tile)) {
+      console.log('map' + portaldata.dest + ' at tile ' + char + ' in direction ' + portaldata.direction);
+      this.loadMap(portaldata.dest, char, portaldata.direction);
+      app.transitionData.active = true;
+      return true;
+    }
+  }
+  
   drawMap(){
     let w = this.map[0].length;
     let h = this.map.length;
     for(let i = 0; i < h; i++){
       for(let j = 0; j < w; j++){
-         if (this.portals[this.map[i][j]]) {
-           ctx.drawImage(this.getTile(this.tileSet[this.portals[this.map[i][j]].tile]), j*64, i*64);
-         } else {
-           ctx.drawImage(this.getTile(this.tileSet[this.map[i][j]]), j*64, i*64);
-         }
+        if (this.portals[this.map[i][j]]) {
+          if (this.checkPortals(j*64, i*64, this.portals[this.map[i][j]], this.map[i][j])) {
+            break;
+            //return; // Exit early if a portal was triggered to avoid drawing the old map
+          }
+          ctx.drawImage(this.getTile(this.tileSet[this.portals[this.map[i][j]].tile]), j*64, i*64);
+        } else {
+          ctx.drawImage(this.getTile(this.tileSet[this.map[i][j]]), j*64, i*64);
+        }
       }
     }
   }
-
+  
   run(){
     this.drawMap();
   }
@@ -202,12 +293,12 @@ class Player {
     this.hitbox = {x: this.x, y: this.y, w: 86, h: 46};
     this.vx = 0;
     this.vy = 0;
-    this.speed = 4;
+    this.speed = 6;
     
     this.image = ['sprites','player','idle_south',0];
     this.direction = 'south';
   }
-
+  
   update(){
     // Lock input during fade-out only
     if (
@@ -312,19 +403,42 @@ class Player {
     
     //const r = this.size / 2;
     //const moved = moveAndSlide(this.x, this.y, r, this.vx, this.vy);
-    this.x += this.vx;
-    this.y += this.vy;
+    this.hitbox.x += this.vx;
+    this.hitbox.y += this.vy;
+
+    //constrain player to map bounds
+    this.hitbox.x = Math.max(0, Math.min(this.hitbox.x, app.map.width - this.hitbox.w));
+    this.hitbox.y = Math.max(0, Math.min(this.hitbox.y, app.map.height - this.hitbox.h));
+    this.adjsutToHitbox();
     
     this._prevNorth = north;
     this._prevSouth = south;
     this._prevWest = west;
     this._prevEast = east;
   }
+  adjsutToHitbox() {
+    if (this.direction === 'north' || this.direction === 'south') {
+      this.x = this.hitbox.x - 16;  
+      this.y = this.hitbox.y;
+    }
+    if (this.direction === 'east' || this.direction === 'west') {
+      this.x = this.hitbox.x - 16;  
+      this.y = this.hitbox.y;
+    }
+    if (this.direction === 'northeast' || this.direction === 'southwest') {
+      this.x = this.hitbox.x - 8;  
+      this.y = this.hitbox.y;
+    }
+    if (this.direction === 'northwest' || this.direction === 'southeast') {
+      this.x = this.hitbox.x - 8;  
+      this.y = this.hitbox.y + 6;
+    }
+  }
   updateHitbox() {
     if (this.direction === 'north' || this.direction === 'south') {
-      this.hitbox.x = this.x + 8; 
+      this.hitbox.x = this.x + 16; 
       this.hitbox.y = this.y;
-      this.hitbox.w = 74;
+      this.hitbox.w = 60;
       this.hitbox.h = 46;
     }
     if (this.direction === 'east' || this.direction === 'west') {
@@ -347,7 +461,7 @@ class Player {
     }
   }
   display(){
-
+    
     if (this.direction === 'north') this.image[2] = 'idle_north';
     else if (this.direction === 'south') this.image[2] = 'idle_south';
     else if (this.direction === 'east') this.image[2] = 'idle_east';
@@ -356,12 +470,12 @@ class Player {
     else if (this.direction === 'southeast') this.image[2] = 'idle_southeast';
     else if (this.direction === 'northwest') this.image[2] = 'idle_northwest';
     else if (this.direction === 'northeast') this.image[2] = 'idle_northeast';
-
+    
     if(app.devMode) {
       ctx.fillStyle = 'red';
       ctx.fillRect(this.hitbox.x, this.hitbox.y, this.hitbox.w, this.hitbox.h);
     }
-
+    
     ctx.drawImage(pixelart[this.image[0]][this.image[1]][this.image[2]][this.image[3]], this.x-64, this.y-46);
   }
   run(){
@@ -375,13 +489,29 @@ const app = {
   devMode: true, // Set to false to hide hitboxes and debug info
   scene: 'loading',
   player: new Player({x: 100, y: 100}),
-  map: new World({data: mapdata.map.room.test}),
+  map: new World({data: mapdata.map.room.test, room: 'room'}),
+  transitionData: {
+    opacity: 1
+  },
+  transition: function() {
+    if(this.transitionData.active) {
+      ctx.fillStyle = 'rgba(0, 0, 0, ' + this.transitionData.opacity + ')';
+      ctx.fillRect(-64, -64, app.map.width + 128, app.map.height + 128);
+      this.transitionData.opacity -= 0.05;
+      if(this.transitionData.opacity <= 0) {
+        this.transitionData.active = false;
+        this.transitionData.opacity = 1;
+      }
+    }
+  },
   runGame: function() {
     // Game logic here
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
+    ctx.clearRect(-64, -64, app.map.width + 128, app.map.height + 128); // Clear with extra padding for lookahead
+    this.map.camera();
     this.map.run();
     this.player.run();
+
+    this.transition();
   },
   loadingAnimation: function() {
     ctx.fillStyle = '#000000';
@@ -394,11 +524,11 @@ const app = {
   run: function() {
     switch (this.scene) {
       case 'loading':
-        loading();
-        this.loadingAnimation();
-        break;
+      loading();
+      this.loadingAnimation();
+      break;
       case 'game':
-        this.runGame();
+      this.runGame();
     }
   }
 }
@@ -406,7 +536,7 @@ const app = {
 function animate() {
   requestAnimationFrame(animate);
   app.run();
-
+  
   keysTyped = {};
 }
 

@@ -1,7 +1,8 @@
 const tiles = {
   defualt: {
     a: ['tiles', 'floor_wood', 0],
-    b: ['tiles', 'grass', 0]  
+    b: ['tiles', 'grass', 0],
+    c: ['tiles', 'portal', 0],
   }
 };
 
@@ -10,7 +11,7 @@ let mapdata = {
     room: {
       'test': {
         tileSet: tiles.defualt,
-        portals: {'@': { dest: 'test2', tile: 'b'}},
+        portals: {'@': { dest: 'test2', tile: 'c', direction: 'east'}},
         map: [
           "aaaaaaaaaaaaabbbbbb",
           "aaaaaaaaaaaaabbbbbb",
@@ -18,17 +19,17 @@ let mapdata = {
           "aaaaaaaaaaaaabbbbbb",
           "aaaaaaaaaaaaabbbbbb",
           "aaaaaaaaaaaaabbbbbb",
-          "bbbbbbbbbbbbbbbbbbb",
+          "bbbbbbbbbbbb@bbbbbb",
           "aaaaaaaaaaaaabbbbbb",
           "aaaaaaaaaaaaabbbbbb",
           "aaaaaaaaaaaaabbbbbb",
-          "aaaaaaaaaaaaabbbbb@",
+          "aaaaaaaaaaaaabbbbbb",
           "aaaaaaaaaaaaabbbbbb",
         ]
       },
       'test2': {
         tileSet: tiles.defualt,
-        portals: {'@': { dest: 'test', tile: 'b'}},
+        portals: {'@': { dest: 'test', tile: 'b', direction: 'west'}},
         map: [
           "bbaaaaaaaaaaabbbbbb",
           "@bbbbbaaaaaaabbbbbb",
