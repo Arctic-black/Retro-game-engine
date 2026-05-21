@@ -170,9 +170,15 @@ class World {
     this.room = config.room;
     this.tileSet = config.data.tileSet;
     this.portals = config.data.portals;
+    this.sprites = config.data.sprites || {};
     this.hitbox = config.data.hitbox || {};
     this.width = this.map[0].length * 64;
     this.height = this.map.length * 64;
+
+    this.groundMap = config.data.map;           // keep original map for ground
+    this.objects = [];                          // entities that need sorting
+
+    this.initiate = true;
 
     this.camdata = {
       x: canvas.width / 2,
@@ -208,34 +214,57 @@ class World {
   }
   
   loadMap(toMap, atTile, dir) {
-    this.mapdata = mapdata['map']['room'][toMap];
-    this.tileSet = this.mapdata.tileSet;
-    this.map = this.mapdata.map;
-    this.portals = this.mapdata.portals;
+    const newMapData = mapdata['map']['room'][toMap];
+    if (!newMapData) {
+      console.error("Map not found:", toMap);
+      return;
+    }
 
-    let w = this.map[0].length;
-    let h = this.map.length;
+    // Switch to new map
+    this.mapdata = newMapData;
+    this.map = newMapData.map;
+    this.tileSet = newMapData.tileSet;
+    this.portals = newMapData.portals;
+    this.sprites = newMapData.sprites || {};
+    this.hitbox = newMapData.hitbox || {};
 
-    for(let i = 0; i < h; i++){
-      for(let j = 0; j < w; j++){
+    this.width = this.map[0].length * 64;
+    this.height = this.map.length * 64;
+
+    // Important: Reset sprite loading
+    this.initiate = true;
+    this.objects = [];
+
+    // Find spawn position on the new map
+    let spawnX, spawnY;
+
+    const h = this.map.length;
+    const w = this.map[0].length;
+
+    for (let i = 0; i < h; i++) {
+      for (let j = 0; j < w; j++) {
         if (this.map[i][j] === atTile) {
-          const player = app.player.hitbox;
           if (dir === 'north') {
-            player.x = j*64;
-            player.y = i*64 + 64;
+            spawnX = j * 64;
+            spawnY = i * 64 + 64;
           } else if (dir === 'south') {
-            player.x = j*64;
-            player.y = i*64 - 46;
+            spawnX = j * 64;
+            spawnY = i * 64 - 64;
           } else if (dir === 'east') {
-            player.x = j*64 + 64;
-            player.y = i*64;
+            spawnX = j * 64 + 64;
+            spawnY = i * 64;
           } else if (dir === 'west') {
-            player.x = j*64 - 64;
-            player.y = i*64;
+            spawnX = j * 64 - 64;
+            spawnY = i * 64;
           }
+          break;
         }
       }
     }
+
+    // Apply new position
+    app.player.hitbox.x = spawnX;
+    app.player.hitbox.y = spawnY;
   }
   
   getTile(path) {
@@ -245,6 +274,29 @@ class World {
       if (obj === undefined) return null;
     }
     return obj;
+  }
+
+  findTile(x, y) {
+    let col = Math.floor(x / 64);
+    let row = Math.floor(y / 64);
+    if (row < 0 || row >= this.map.length) return null;
+    if (col < 0 || col >= this.map[0].length) return null;
+
+    const char = this.map[row][col];
+    
+    if (this.portals[char]) {
+      return {
+        type: 'portal',
+        x: col * 64,
+        y: row * 64,
+        w: 64,
+        h: 64,
+        data: this.portals[char],
+        char: char
+      };
+    } else {
+      return {char: char}
+    }
   }
   
   checkPortals(x, y, portaldata, char) {
@@ -258,8 +310,6 @@ class World {
     
     if(collide.rectToRect(H_box, tile)) {
       console.log('map' + portaldata.dest + ' at tile ' + char + ' in direction ' + portaldata.direction);
-      this.loadMap(portaldata.dest, char, portaldata.direction);
-      app.transitionData.active = true;
       return true;
     }
   }
@@ -278,30 +328,105 @@ class World {
     // default to non-solid
     return false;
   }
-  
-  drawMap(){
-    let w = this.map[0].length;
-    let h = this.map.length;
-    for(let i = 0; i < h; i++){
-      for(let j = 0; j < w; j++){
-        if (this.portals[this.map[i][j]]) {
-          if (this.checkPortals(j*64, i*64, this.portals[this.map[i][j]], this.map[i][j])) {
-            break;
-            //return; // Exit early if a portal was triggered to avoid drawing the old map
-          }
-          ctx.drawImage(this.getTile(this.tileSet[this.portals[this.map[i][j]].tile]), j*64, i*64);
-        } else if (this.hitbox[this.map[i][j]]) {
-          // If there's a hitbox defined for this tile, draw the hitbox tile instead
-          ctx.drawImage(this.getTile(this.tileSet[this.hitbox[this.map[i][j]].tile]), j*64, i*64);
-        } else {
-          ctx.drawImage(this.getTile(this.tileSet[this.map[i][j]]), j*64, i*64);
+
+  loadSprites() {
+    this.objects = [];
+
+    const h = this.map.length;
+    const w = this.map[0].length;
+
+    for (let i = 0; i < h; i++) {
+      for (let j = 0; j < w; j++) {
+        const char = this.map[i][j];
+
+        if (this.sprites[char]) {
+          const data = this.sprites[char].sprite;
+
+          const sprite = new Sprite({
+            x: j * 64 + (data.offsetX || -74),
+            y: i * 64 + (data.offsetY || -32),
+            frameData: data.frames,
+            frameDuration: data.frameDuration || 200,
+            pivotY: data.pivotY
+          });
+
+          this.objects.push(sprite);
+        }
+      }
+    }
+    this.initiate = false;
+  }
+
+  // Draw only ground tiles (floors, base of walls, etc.)
+  drawGround() {
+    const h = this.map.length;
+    const w = this.map[0].length;
+
+    for (let i = 0; i < h; i++) {
+      for (let j = 0; j < w; j++) {
+        const char = this.map[i][j];
+
+        let tilePath = this.tileSet[char];
+
+        if (this.portals[char]) {
+          tilePath = this.tileSet[this.portals[char].tile];
+        } else if (this.hitbox[char]) {
+          tilePath = this.tileSet[this.hitbox[char].tile];
+        } else if (this.sprites[char]) {
+          tilePath = this.tileSet[this.sprites[char].tile];
+        }
+
+        if (tilePath) {
+          ctx.drawImage(this.getTile(tilePath), j * 64, i * 64);
         }
       }
     }
   }
   
   run(){
-    this.drawMap();
+    if (this.initiate) this.loadSprites();
+
+    this.drawGround();
+  }
+}
+
+class Sprite {
+  constructor(config) {
+    this.x = config.x || 0;
+    this.y = config.y || 0;
+    this.frameData = config.frameData;           // array of paths
+    this.frameDuration = config.frameDuration || 200;
+    this.currentFrame = 0;
+    this.lastFrameTime = Date.now();
+
+    // Crucial for depth sorting
+    this.pivotY = config.pivotY || 64;           // Y offset to the "feet" / base of sprite
+    this.sortY = this.y + this.pivotY;
+  }
+
+  update() {
+    if (Date.now() - this.lastFrameTime > this.frameDuration) {
+      this.currentFrame = (this.currentFrame + 1) % this.frameData.length;
+      this.lastFrameTime = Date.now();
+    }
+  }
+
+  getImage() {
+    const path = this.frameData[this.currentFrame];
+    let obj = pixelart;
+    for (let key of path) {
+      obj = obj[key];
+      if (obj === undefined) return null;
+    }
+    return obj;
+  }
+
+  draw() {
+    this.update();
+    const img = this.getImage();
+    if (img) {
+      ctx.drawImage(img, this.x, this.y);
+    }
   }
 }
 
@@ -327,6 +452,10 @@ class Player {
       x: -24,
       y: 0
     };
+  }
+
+  get sortY() {
+    return this.hitbox.y + this.hitbox.h;   // feet position
   }
 
   update() {
@@ -423,6 +552,32 @@ class Player {
     return result;
   }
 
+  checkPortals() {
+    const TILE = 64;
+    const left   = Math.floor(this.hitbox.x / TILE);
+    const right  = Math.floor((this.hitbox.x + this.hitbox.w - 1) / TILE);
+    const top    = Math.floor(this.hitbox.y / TILE);
+    const bottom = Math.floor((this.hitbox.y + this.hitbox.h - 1) / TILE);
+
+    for (let row = top; row <= bottom; row++) {
+      for (let col = left; col <= right; col++) {
+        if (row < 0 || row >= app.map.map.length || col < 0 || col >= app.map.map[0].length) continue;
+
+        const char = app.map.map[row][col];
+        const portalData = app.map.portals[char];
+
+        if (portalData) {
+          console.log(`Portal activated → ${portalData.dest} (${char})`);
+
+          // Load new map and place player
+          app.map.loadMap(portalData.dest, char, portalData.direction);
+          app.transitionData.active = true;
+          return; // Only trigger once per frame
+        }
+      }
+    }
+  }
+
   updateVisuals() {
     // Update sprite based on direction
     const dirMap = {
@@ -467,8 +622,8 @@ class Player {
   }
 
   run() {
+    this.checkPortals();
     this.update();
-    this.display();
   }
 }
 
@@ -476,6 +631,7 @@ const app = {
   devMode: true, // Set to false to hide hitboxes and debug info
   scene: 'loading',
   player: new Player({x: 100, y: 100}),
+  //sprites: [],
   map: new World({data: mapdata.map.room.test, room: 'room'}),
   transitionData: {
     opacity: 1
@@ -483,7 +639,7 @@ const app = {
   transition: function() {
     if(this.transitionData.active) {
       ctx.fillStyle = 'rgba(0, 0, 0, ' + this.transitionData.opacity + ')';
-      ctx.fillRect(-64, -64, app.map.width + 128, app.map.height + 128);
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
       this.transitionData.opacity -= 0.05;
       if(this.transitionData.opacity <= 0) {
         this.transitionData.active = false;
@@ -493,10 +649,25 @@ const app = {
   },
   runGame: function() {
     // Game logic here
-    ctx.clearRect(-64, -64, app.map.width + 128, app.map.height + 128); // Clear with extra padding for lookahead
-    this.map.camera();
-    this.map.run();
-    this.player.run();
+    ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear with extra padding for lookahead
+    ctx.save();
+      this.map.camera();
+      this.map.run();
+      this.player.run();
+
+      let entities = [
+        ...this.map.objects,
+        this.player
+      ];
+
+      entities.sort((a, b) => (a.sortY || 0) - (b.sortY || 0));
+
+      for (let entity of entities) {
+        if (entity.draw) entity.draw();           // sprites
+        else if (entity.display) entity.display(); // player
+      }
+      
+    ctx.restore();
 
     this.transition();
   },

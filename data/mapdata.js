@@ -9,15 +9,16 @@ const tiles = {
 
 let mapdata = {
   map: {
-    room: {
+    room: { 
       'test': {
         tileSet: tiles.defualt,
         portals: {'@': { dest: 'test2', tile: 'c', direction: 'east'}},
         hitbox: {'1': {tile: 'd', solid: true}},
+        sprites: {'&': {tile: 'a', solid: true, sprite: spritedata.testSprite}},
         map: [
           "aaaaaaaaaaaaabbbbbb",
           "aaaaaaaaaaaaabbbbbb",
-          "aaaaaaaaaaaaabbbbbb",
+          "aaaaa&aaaaaaabbbbbb",
           "aaaaaaaaaaaaabbbbbb",
           "aaaaaaaaaaaaabbbbbb",
           "aaaaaaaaaaaa11bbbbb",
