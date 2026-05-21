@@ -608,6 +608,50 @@ let pixelart = {
         'cccccccccccccccccccccccccccccccc',
         ]
       }
+    ],
+    wall_stone: [  
+      {
+        palette: {
+          'a': 'rgb(100, 100, 100)',
+          'b': 'rgb(150, 150, 150)',
+          'c': 'rgb(200, 200, 200)',
+          'd': 'rgb(50, 50, 50)',
+        },
+        map: [
+            'aaaaaaaaaaaaaaaaaaaaaaabaaaaaaaa',
+            'aaaaaaaaaaaaaaaaaaaaaaabaaaaaaaa',
+            'baaaaaaaaaaaaaaaaaabbbbbbbbbbbbb',
+            'abbbbbbbbbbbbbbbbbbbaaaaaaaaaaaa',
+            'aaaaaaaaaaaaaaaaaaabaacccccccccc',
+            'cccccccccccccccaaaabaaaaaaaaaaaa',
+            'aaaaaaaaaaaaaaaaaaabaaaaaaaaaaaa',
+            'aaaaaaaaaaaaaaaddddbaaaaaaaaaaaa',
+            'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+            'baaaaaaaaaabaaaaaaaaaaaaaaaaaaaa',
+            'aaaaaacaaaabaaaaaaaaaaaaaaaaaaaa',
+            'ccccccaaaaabaacaaaaaaaaaaaaaaaaa',
+            'aaaaaaaaaaabaaacccccccccccccaaaa',
+            'aaaaaaaaaaabaaaaaaaaaaaaaaaaaaaa',
+            'aaaaaaaaaaabaaaaaaaaaaaaaaaaaaaa',
+            'bbbbbbbbbbbbbbbbbbbbbbaaaaabbbbb',
+            'aaaaaaaaaaaaaaaaaaaaabbbbbbbaaaa',
+            'aaaaccccccccccaaaaaaaabaaaaaaaaa',
+            'ccccaaaaaaaaacaaaaaaaabaaaaaaaaa',
+            'caaaaaaaaaaaaaaaaaaaaabaaaaaaaaa',
+            'aaaaaaaaaaaaaaaaaaaaaabaaaaaaaaa',
+            'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+            'aaaaaaaabaaaaaaaaaaaaaaaaaaaaaaa',
+            'aaaaaaaabaaaaaaaaaaaaaaaaaaaaaaa',
+            'aaaaaaaabaaaaccccccccaaaaaaaaaaa',
+            'aaaaaaabbaaaaaaaaaaaaccccccccccc',
+            'aaaaaaabaaaaaaaaaaaaaaaaaabbbbbb',
+            'bbbbbbbbbbbbbbbbbbbbbbbbbbaaaaaa',
+            'aaaaaaaaaaaaaaaaaaaaaaabaaaaaaaa',
+            'aaaaaaaaaaaaaaaaaaaaaaabaaaaaaac',
+            'cccccccccccaaaaaaaaaaaabaaaaaccc',
+            'aaaaaaaaaaaccccccaaaaaabaacccaaa'
+            ]
+      },
     ]
   }
 };
