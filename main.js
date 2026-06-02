@@ -246,10 +246,10 @@ class World {
         if (this.map[i][j] === atTile) {
           if (dir === 'north') {
             spawnX = j * 64;
-            spawnY = i * 64 + 64;
+            spawnY = i * 64 - 64;
           } else if (dir === 'south') {
             spawnX = j * 64;
-            spawnY = i * 64 - 64;
+            spawnY = i * 64 + 64;
           } else if (dir === 'east') {
             spawnX = j * 64 + 64;
             spawnY = i * 64;
@@ -347,7 +347,8 @@ class World {
             y: i * 64 + (data.offsetY || -32),
             frameData: data.frames,
             frameDuration: data.frameDuration || 200,
-            pivotY: data.pivotY
+            pivotY: data.pivotY,
+            data: data
           });
 
           this.objects.push(sprite);
@@ -392,16 +393,76 @@ class World {
 
 class Sprite {
   constructor(config) {
-    this.x = config.x || 0;
+    this.x = config.x || 0; 
     this.y = config.y || 0;
-    this.frameData = config.frameData;           // array of paths
+    this.frameData = config.frameData;// array of paths for drawing frames
     this.frameDuration = config.frameDuration || 200;
     this.currentFrame = 0;
     this.lastFrameTime = Date.now();
+    this.name = config.data.name || 'unknown';
+
+    this.hitbox = {
+      x: this.x - (config.data.hitboxOffset.x || config.data.offsetX || 0),
+      y: this.y - (config.data.hitboxOffset.y || config.data.offsetY || 0),
+      w: config.data.hitboxOffset.w || 64,
+      h: config.data.hitboxOffset.h || 64,
+      solid: true
+    };
+
+    this.talkHitbox = {
+      x: this.x - (config.data.offsetX || 0) - 16,
+      y: this.y - (config.data.offsetY || 0) - 16,
+      w: 96,
+      h: 96
+    };
 
     // Crucial for depth sorting
-    this.pivotY = config.pivotY || 64;           // Y offset to the "feet" / base of sprite
+    this.pivotY = config.pivotY || 64;// Y offset to the "feet" / base of sprite
     this.sortY = this.y + this.pivotY;
+  }
+
+  checkCollision() {
+    let player = app.player.hitbox;
+    if (this.hitbox.solid && collide.rectToRect(player, this.hitbox)) {
+      // Simple collision response: push player out of sprite
+      const overlapX = Math.min(player.x + player.w, this.hitbox.x + this.hitbox.w) - Math.max(player.x, this.hitbox.x);
+      const overlapY = Math.min(player.y + player.h, this.hitbox.y + this.hitbox.h) - Math.max(player.y, this.hitbox.y);
+
+      if (overlapX < overlapY) {
+        // Horizontal collision
+        if (player.x < this.hitbox.x) {
+          player.x -= overlapX; // push left
+        } else {
+          player.x += overlapX; // push right
+        }
+      } else {
+        // Vertical collision
+        if (player.y < this.hitbox.y) {
+          player.y -= overlapY; // push up
+        } else {
+          player.y += overlapY; // push down
+        }
+      }
+    }
+  }
+
+  detectPlayer() {
+    let player = app.player.hitbox;
+    if (collide.rectToRect(player, this.talkHitbox)) {
+      // Player is within interaction range
+      // Trigger dialogue or interaction logic here
+      //if (app.devMode) console.log('Player detected by sprite at', this.x, this.y);
+      return true;
+    }
+
+    if (app.devMode) {
+      // Draw talk hitbox for debugging
+      ctx.strokeStyle = 'rgba(0, 255, 0, 0.5)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(this.talkHitbox.x, this.talkHitbox.y, this.talkHitbox.w, this.talkHitbox.h);
+    }
+
+    return false;
   }
 
   update() {
@@ -409,6 +470,16 @@ class Sprite {
       this.currentFrame = (this.currentFrame + 1) % this.frameData.length;
       this.lastFrameTime = Date.now();
     }
+  }
+
+  drawHitbox() {
+    ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
+    ctx.fillRect(this.hitbox.x, this.hitbox.y, this.hitbox.w, this.hitbox.h);
+  }
+
+  drawPivot() { 
+    ctx.fillStyle = 'blue';
+    ctx.fillRect(this.hitbox.x, this.y + this.pivotY, 6, 6);
   }
 
   getImage() {
@@ -423,9 +494,21 @@ class Sprite {
 
   draw() {
     this.update();
+    if(this.detectPlayer() && app.scene !== 'dialogue' && keys.z) {
+      // Trigger dialogue or interaction logic here
+      if (app.scene !== 'dialogue') {
+        app.scene = 'dialogue';
+        dialogue.init(this.name, dialogueData.exampleScene.exampleEncounter.exampleSpeaker.dialogue);
+      }
+    }
     const img = this.getImage();
     if (img) {
       ctx.drawImage(img, this.x, this.y);
+    }
+
+    if (app.devMode && keys['Shift']) {
+      this.drawHitbox();
+      this.drawPivot();
     }
   }
 }
@@ -653,7 +736,9 @@ const app = {
     ctx.save();
       this.map.camera();
       this.map.run();
-      this.player.run();
+      if (app.scene !== 'dialogue') {
+        this.player.run();
+      }
 
       let entities = [
         ...this.map.objects,
@@ -664,7 +749,12 @@ const app = {
 
       for (let entity of entities) {
         if (entity.draw) entity.draw();           // sprites
-        else if (entity.display) entity.display(); // player
+        else if (entity.display) {
+          for (let obj of this.map.objects) {
+            obj.checkCollision();
+          }
+          entity.display();
+        } // player
       }
       
     ctx.restore();
@@ -682,11 +772,16 @@ const app = {
   run: function() {
     switch (this.scene) {
       case 'loading':
-      loading();
-      this.loadingAnimation();
-      break;
+        loading();
+        this.loadingAnimation();
+        break;
       case 'game':
-      this.runGame();
+        this.runGame(); 
+        break;
+      case 'dialogue':
+        this.runGame(); // still show game in background
+        dialogue.runDialogue();
+        break;
     }
   }
 }
