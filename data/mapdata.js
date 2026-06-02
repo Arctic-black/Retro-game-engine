@@ -14,7 +14,7 @@ let mapdata = {
         tileSet: tiles.default,
         portals: {'@': { dest: 'test2', tile: 'c', direction: 'east'}},
         hitbox: {'1': {tile: 'd', solid: true}},
-        sprites: {'&': {tile: 'a', solid: true, sprite: spritedata.testSprite}},
+        sprites: {'&': {tile: 'd', solid: true, sprite: spritedata.testSprite}},
         map: [
           "aaaaaaaaaaaaabbbbbb",
           "aaaaaaaaaaaaabbbbbb",
@@ -37,10 +37,11 @@ let mapdata = {
           'µ': { dest: 'test3', tile: 'c', direction: 'south'}
         },
         hitbox: {'1': {tile: 'd', solid: true}},
+        sprites: {'&': {tile: 'b', solid: true, sprite: spritedata.bob}},
         map: [
           "1111aaaaaaaaabbbbbb",
           "@bbbbbaaaaaaabbbbbb",
-          "1111abbbbbaaabbbbbb",
+          "1111abbbbbaaa&bbbbb",
           "aaaaaaaaabaaabbbbbb",
           "aaaaaaaaabaaabbbbbb",
           "aaaaaaaaabaaabbbbbb",

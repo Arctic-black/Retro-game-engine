@@ -129,6 +129,9 @@ let toLoad = [
   ['sprites', 'player', 'idle_southeast', 0],
   ['sprites', 'player', 'idle_northwest', 0],
   ['sprites', 'player', 'idle_northeast', 0],
+
+  //load-path bob sprites
+  ['sprites', 'bob', 'idle_south', 0],
   
   //load-path map tiles
   ['tiles', 'floor_wood', 0],
@@ -401,13 +404,19 @@ class Sprite {
     this.lastFrameTime = Date.now();
     this.name = config.data.name || 'unknown';
 
+    //dialogue properties
+    this.talkIndex = 0;
+    this.dialoguePath = config.data.dialogue || null; //should return array
+
     this.hitbox = {
-      x: this.x - (config.data.hitboxOffset.x || config.data.offsetX || 0),
-      y: this.y - (config.data.hitboxOffset.y || config.data.offsetY || 0),
+      x: (this.x - config.data.offsetX) + (config.data.hitboxOffset.x || 0),
+      y: (this.y - config.data.offsetY) + (config.data.hitboxOffset.y || 0),
       w: config.data.hitboxOffset.w || 64,
       h: config.data.hitboxOffset.h || 64,
       solid: true
     };
+
+    console.log(`Loaded sprite "${this.name}" with hitbox:`, this.hitbox, 'from config:', config);
 
     this.talkHitbox = {
       x: this.x - (config.data.offsetX || 0) - 16,
@@ -494,11 +503,11 @@ class Sprite {
 
   draw() {
     this.update();
-    if(this.detectPlayer() && app.scene !== 'dialogue' && keys.z) {
+    if(this.detectPlayer() && app.scene !== 'dialogue' && keysTyped.z) {
       // Trigger dialogue or interaction logic here
       if (app.scene !== 'dialogue') {
         app.scene = 'dialogue';
-        dialogue.init(this.name, dialogueData.exampleScene.exampleEncounter.exampleSpeaker.dialogue);
+        dialogue.init(this.name, this.dialoguePath[this.talkIndex]);
       }
     }
     const img = this.getImage();
