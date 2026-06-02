@@ -394,7 +394,7 @@ class World {
   }
 }
 
-class Sprite {
+class Sprite {aw
   constructor(config) {
     this.x = config.x || 0; 
     this.y = config.y || 0;
@@ -418,11 +418,23 @@ class Sprite {
 
     console.log(`Loaded sprite "${this.name}" with hitbox:`, this.hitbox, 'from config:', config);
 
+    let offsetX = -16;
+    let offsetY = -16;
+    let offsetW = 96;
+    let offsetH = 96;
+
+    if (config.data.talkHitboxOffset) {
+      offsetX = config.data.talkHitboxOffset.x;
+      offsetY = config.data.talkHitboxOffset.y;
+      offsetW = config.data.talkHitboxOffset.w;
+      offsetH = config.data.talkHitboxOffset.h;
+    }
+
     this.talkHitbox = {
-      x: this.x - (config.data.offsetX || 0) - 16,
-      y: this.y - (config.data.offsetY || 0) - 16,
-      w: 96,
-      h: 96
+      x: (this.x - config.data.offsetX) + offsetX,
+      y: (this.y - config.data.offsetY) + offsetY,
+      w: offsetW,
+      h: offsetH
     };
 
     // Crucial for depth sorting
@@ -459,8 +471,7 @@ class Sprite {
     let player = app.player.hitbox;
     if (collide.rectToRect(player, this.talkHitbox)) {
       // Player is within interaction range
-      // Trigger dialogue or interaction logic here
-      //if (app.devMode) console.log('Player detected by sprite at', this.x, this.y);
+      // Trigger dialogue or interaction logic
       return true;
     }
 
@@ -541,8 +552,8 @@ class Player {
 
     // Visual offset from hitbox top-left
     this.visualOffset = {
-      x: -24,
-      y: 0
+      x: 40,
+      y: -12
     };
   }
 

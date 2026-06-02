@@ -200,6 +200,7 @@ let dialogue = {
   
   runDialogue: function() {
     if (!this.active || !this.node) return;
+    let pauseTime = this.pause*this.speed;
     
     // Draw box
     ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
@@ -220,15 +221,15 @@ let dialogue = {
 
       //display strings typewriter style
       if (typeof displayText === 'string') {
-        const visible = Math.floor(this.counter);
+        const visible = Math.floor(this.counter - pauseTime);
         textarea(displayText.substring(0, visible), 70, canvas.height - 180, canvas.width - 140, 160, 30);
       }
 
       const fullLength = typeof displayText === 'string' ? displayText.length : 0;
 
-      if (keys.x && this.canSpeedUp) {
+      if (keys.x) {
         //speed up text if x is held
-        this.counter = fullLength; // Increase speed multiplier for faster text
+        this.counter = fullLength + pauseTime; // Increase speed multiplier for faster text
       } else {
         this.counter += this.speed;
       }
@@ -255,7 +256,13 @@ let dialogue = {
       // draw options
       this.options.forEach((option, i) => {
         ctx.fillStyle = (i === this.optionsIndex) ? 'yellow' : 'white';
-        ctx.fillText(option.text, 70, canvas.height - 150 + i * 35);
+        if (i < 3) {
+          ctx.fillText(option.text, 70, canvas.height - 150 + i * 35);
+        } else {
+          //display more than 3 options in a column on the right side of the box
+          ctx.textAlign = 'right';
+          ctx.fillText(option.text, canvas.width - 70, canvas.height - 150 + (i - 3) * 35);
+        }
       });
 
       this.selectOption();
