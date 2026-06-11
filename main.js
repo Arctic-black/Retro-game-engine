@@ -410,6 +410,7 @@ class Sprite {
     this.name = config.data.name || 'unknown';
     this.offsetX = config.data.offsetX;
     this.offsetY = config.data.offsetY;
+    this.direction = 'south'; // default direction for dialogue and interactions
 
     //dialogue properties
     this.talkIndex = 0;
@@ -537,12 +538,10 @@ class Sprite {
   draw() {
     this.update();
     this.updateHitboxes();
-    if(this.detectPlayer() && app.scene !== 'dialogue' && keysTyped.z) {
+    if(this.detectPlayer() && app.scene === 'game' && keysTyped.z) {
       // Trigger dialogue or interaction logic here
-      if (app.scene !== 'dialogue') {
-        app.scene = 'dialogue';
-        dialogue.init(this.name, this.dialoguePath[this.talkIndex]);
-      }
+      app.scene = 'dialogue';
+      dialogue.init(this.name, this.dialoguePath[this.talkIndex]);
     }
     const img = this.getImage();
     if (img) {
@@ -795,6 +794,7 @@ const app = {
     // Game logic here
     ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear with extra padding for lookahead
     ctx.save();
+
       this.map.camera();
       this.map.run();
       
