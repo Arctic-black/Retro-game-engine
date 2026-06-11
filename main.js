@@ -120,6 +120,7 @@ const loadPix = {
 
 //====== Loading queue ======
 let toLoad = [
+  //load-path player sprites
   ['sprites', 'player', 'idle_south', 0],
   ['sprites', 'player', 'idle_north', 0],
   ['sprites', 'player', 'idle_east', 0],
@@ -128,10 +129,15 @@ let toLoad = [
   ['sprites', 'player', 'idle_southeast', 0],
   ['sprites', 'player', 'idle_northwest', 0],
   ['sprites', 'player', 'idle_northeast', 0],
+
+  //load-path bob sprites
+  ['sprites', 'bob', 'idle_south', 0],
   
+  //load-path map tiles
   ['tiles', 'floor_wood', 0],
   ['tiles', 'grass', 0],
   ['tiles', 'portal', 0],
+  ['tiles', 'wall_stone', 0],
 ];
 
 let loadIndex = 0;
@@ -161,37 +167,46 @@ function loading() {
   }
 }
 
+
 class World {
   constructor(config){
     this.map = config.data.map;
     this.room = config.room;
     this.tileSet = config.data.tileSet;
     this.portals = config.data.portals;
+    this.sprites = config.data.sprites || {};
+    this.hitbox = config.data.hitbox || {};
     this.width = this.map[0].length * 64;
     this.height = this.map.length * 64;
+
+    this.groundMap = config.data.map;           // keep original map for ground
+    this.objects = [];                          // entities that need sorting
+
+    this.initiate = true;
 
     this.camdata = {
       x: canvas.width / 2,
       y: canvas.height / 2,
       lookahead: 46,
-      lerpSpeed: 0.2
+      lerpSpeed: 0.2,
+      focus: null
     };
   }
 
   camera() {
-    let player = app.player.hitbox;
+    let focus = this.camdata.focus || app.player.hitbox;
     this.width = this.map[0].length * 64;
     this.height = this.map.length * 64;
 
     let dx = 0,
       dy = 0;
-    if (player.direction === 'east') dx = this.camdata.lookahead;
-    if (player.direction === 'west') dx = -this.camdata.lookahead;
-    if (player.direction === 'south') dy = this.camdata.lookahead;
-    if (player.direction === 'north') dy = -this.camdata.lookahead;
+    if (focus.direction === 'east') dx = this.camdata.lookahead;
+    if (focus.direction === 'west') dx = -this.camdata.lookahead;
+    if (focus.direction === 'south') dy = this.camdata.lookahead;
+    if (focus.direction === 'north') dy = -this.camdata.lookahead;
     
-    let camTargetX = player.x - canvas.width / 2 + dx;
-    let camTargetY = player.y - canvas.height / 2 + dy;
+    let camTargetX = focus.x - canvas.width / 2 + dx;
+    let camTargetY = focus.y - canvas.height / 2 + dy;
     
     this.camdata.x += (camTargetX - this.camdata.x) * this.camdata.lerpSpeed;
     this.camdata.y += (camTargetY - this.camdata.y) * this.camdata.lerpSpeed;
@@ -204,37 +219,57 @@ class World {
   }
   
   loadMap(toMap, atTile, dir) {
-    this.mapdata = mapdata['map']['room'][toMap];
-    this.tileSet = this.mapdata.tileSet;
-    this.map = this.mapdata.map;
-    this.portals = this.mapdata.portals;
+    const newMapData = mapdata['map']['room'][toMap];
+    if (!newMapData) {
+      console.error("Map not found:", toMap);
+      return;
+    }
 
-    let w = this.map[0].length;
-    let h = this.map.length;
+    // Switch to new map
+    this.mapdata = newMapData;
+    this.map = newMapData.map;
+    this.tileSet = newMapData.tileSet;
+    this.portals = newMapData.portals;
+    this.sprites = newMapData.sprites || {};
+    this.hitbox = newMapData.hitbox || {};
 
-    for(let i = 0; i < h; i++){
-      for(let j = 0; j < w; j++){
+    this.width = this.map[0].length * 64;
+    this.height = this.map.length * 64;
+
+    // Important: Reset sprite loading
+    this.initiate = true;
+    this.objects = [];
+
+    // Find spawn position on the new map
+    let spawnX, spawnY;
+
+    const h = this.map.length;
+    const w = this.map[0].length;
+
+    for (let i = 0; i < h; i++) {
+      for (let j = 0; j < w; j++) {
         if (this.map[i][j] === atTile) {
-          const player = app.player.hitbox;
           if (dir === 'north') {
-            player.x = j*64;
-            player.y = i*64 + 64;
+            spawnX = j * 64;
+            spawnY = i * 64 - 64;
           } else if (dir === 'south') {
-            player.x = j*64;
-            player.y = i*64 - 46;
+            spawnX = j * 64;
+            spawnY = i * 64 + 64;
           } else if (dir === 'east') {
-            player.x = j*64 + 64;
-            player.y = i*64;
+            spawnX = j * 64 + 64;
+            spawnY = i * 64;
           } else if (dir === 'west') {
-            player.x = j*64 - 64;
-            player.y = i*64;
+            spawnX = j * 64 - 64;
+            spawnY = i * 64;
           }
-          ctx.drawImage(this.getTile(this.tileSet[this.portals[this.map[i][j]].tile]), j*64, i*64);
-        } else {
-          ctx.drawImage(this.getTile(this.tileSet[this.map[i][j]]), j*64, i*64);
+          break;
         }
       }
     }
+
+    // Apply new position
+    app.player.hitbox.x = spawnX;
+    app.player.hitbox.y = spawnY;
   }
   
   getTile(path) {
@@ -244,6 +279,29 @@ class World {
       if (obj === undefined) return null;
     }
     return obj;
+  }
+
+  findTile(x, y) {
+    let col = Math.floor(x / 64);
+    let row = Math.floor(y / 64);
+    if (row < 0 || row >= this.map.length) return null;
+    if (col < 0 || col >= this.map[0].length) return null;
+
+    const char = this.map[row][col];
+    
+    if (this.portals[char]) {
+      return {
+        type: 'portal',
+        x: col * 64,
+        y: row * 64,
+        w: 64,
+        h: 64,
+        data: this.portals[char],
+        char: char
+      };
+    } else {
+      return {char: char}
+    }
   }
   
   checkPortals(x, y, portaldata, char) {
@@ -257,231 +315,440 @@ class World {
     
     if(collide.rectToRect(H_box, tile)) {
       console.log('map' + portaldata.dest + ' at tile ' + char + ' in direction ' + portaldata.direction);
-      this.loadMap(portaldata.dest, char, portaldata.direction);
-      app.transitionData.active = true;
       return true;
     }
   }
-  
-  drawMap(){
-    let w = this.map[0].length;
-    let h = this.map.length;
-    for(let i = 0; i < h; i++){
-      for(let j = 0; j < w; j++){
-        if (this.portals[this.map[i][j]]) {
-          if (this.checkPortals(j*64, i*64, this.portals[this.map[i][j]], this.map[i][j])) {
-            break;
-            //return; // Exit early if a portal was triggered to avoid drawing the old map
-          }
-          ctx.drawImage(this.getTile(this.tileSet[this.portals[this.map[i][j]].tile]), j*64, i*64);
-        } else {
-          ctx.drawImage(this.getTile(this.tileSet[this.map[i][j]]), j*64, i*64);
+
+  isSolid(col, row) {
+    const tileChar = this.map[row] && this.map[row][col];
+    // check map bounds
+    if (row < 0 || row >= this.map.length) return true;
+    if (col < 0 || col >= this.map[0].length) return true;
+
+    // check hitbox data
+    if (this.hitbox[tileChar] && this.hitbox[tileChar].solid) {
+      return true;
+    }
+
+    // default to non-solid
+    return false;
+  }
+
+  loadSprites() {
+    this.objects = [];
+
+    const h = this.map.length;
+    const w = this.map[0].length;
+
+    for (let i = 0; i < h; i++) {
+      for (let j = 0; j < w; j++) {
+        const char = this.map[i][j];
+
+        if (this.sprites[char]) {
+          const data = this.sprites[char].sprite;
+
+          const sprite = new Sprite({
+            x: j * 64 + (data.offsetX || -74),
+            y: i * 64 + (data.offsetY || -32),
+            frameData: data.frames,
+            frameDuration: data.frameDuration || 200,
+            pivotY: data.pivotY,
+            data: data
+          });
+
+          this.objects.push(sprite);
+        }
+      }
+    }
+    this.initiate = false;
+  }
+
+  // Draw only ground tiles (floors, base of walls, etc.)
+  drawGround() {
+    const h = this.map.length;
+    const w = this.map[0].length;
+
+    for (let i = 0; i < h; i++) {
+      for (let j = 0; j < w; j++) {
+        const char = this.map[i][j];
+
+        let tilePath = this.tileSet[char];
+
+        if (this.portals[char]) {
+          tilePath = this.tileSet[this.portals[char].tile];
+        } else if (this.hitbox[char]) {
+          tilePath = this.tileSet[this.hitbox[char].tile];
+        } else if (this.sprites[char]) {
+          tilePath = this.tileSet[this.sprites[char].tile];
+        }
+
+        if (tilePath) {
+          ctx.drawImage(this.getTile(tilePath), j * 64, i * 64);
         }
       }
     }
   }
   
   run(){
-    this.drawMap();
+    if (this.initiate) {
+      //this.camdata.focus = app.player.hitbox;
+      this.loadSprites();
+    };
+
+    this.drawGround();
+  }
+}
+
+class Sprite {
+  constructor(config) {
+    this.x = config.x || 0; 
+    this.y = config.y || 0;
+    this.frameData = config.frameData;// array of paths for drawing frames
+    this.frameDuration = config.frameDuration || 200;
+    this.currentFrame = 0;
+    this.lastFrameTime = Date.now();
+    this.name = config.data.name || 'unknown';
+    this.offsetX = config.data.offsetX;
+    this.offsetY = config.data.offsetY;
+    this.direction = 'south'; // default direction for dialogue and interactions
+
+    //dialogue properties
+    this.talkIndex = 0;
+    this.dialoguePath = config.data.dialogue || null; //should return array
+
+    this.hitbox = {
+      x: (this.x - this.offsetX) + (config.data.hitboxOffset.x || 0),
+      y: (this.y - this.offsetY) + (config.data.hitboxOffset.y || 0),
+      w: config.data.hitboxOffset.w || 64,
+      h: config.data.hitboxOffset.h || 64,
+      solid: true,
+      offsetX: config.data.hitboxOffset.x || 0,
+      offsetY: config.data.hitboxOffset.y || 0
+    };
+
+    let offsetX = -16;
+    let offsetY = -16;
+    let offsetW = 96;
+    let offsetH = 96;
+
+    if (config.data.talkHitboxOffset) {
+      offsetX = config.data.talkHitboxOffset.x;
+      offsetY = config.data.talkHitboxOffset.y;
+      offsetW = config.data.talkHitboxOffset.w;
+      offsetH = config.data.talkHitboxOffset.h;
+    }
+
+    this.talkHitbox = {
+      x: (this.x - this.offsetX) + offsetX,
+      y: (this.y - this.offsetY) + offsetY,
+      w: offsetW,
+      h: offsetH,
+      solid: false,
+      offsetX: offsetX,
+      offsetY: offsetY
+    };
+
+    // Crucial for depth sorting
+    this.pivotY = config.pivotY || 64;// Y offset to the "feet" / base of sprite
+    this.sortY = this.y + this.pivotY;
+  }
+
+  checkCollision() {
+    let player = app.player.hitbox;
+    if (this.hitbox.solid && collide.rectToRect(player, this.hitbox)) {
+      // Simple collision response: push player out of sprite
+      const overlapX = Math.min(player.x + player.w, this.hitbox.x + this.hitbox.w) - Math.max(player.x, this.hitbox.x);
+      const overlapY = Math.min(player.y + player.h, this.hitbox.y + this.hitbox.h) - Math.max(player.y, this.hitbox.y);
+
+      if (overlapX < overlapY) {
+        // Horizontal collision
+        if (player.x < this.hitbox.x) {
+          player.x -= overlapX; // push left
+        } else {
+          player.x += overlapX; // push right
+        }
+      } else {
+        // Vertical collision
+        if (player.y < this.hitbox.y) {
+          player.y -= overlapY; // push up
+        } else {
+          player.y += overlapY; // push down
+        }
+      }
+    }
+  }
+
+  detectPlayer() {
+    let player = app.player.hitbox;
+    if (collide.rectToRect(player, this.talkHitbox)) {
+      // Player is within interaction range
+      // Trigger dialogue or interaction logic
+      return true;
+    }
+
+    if (app.devMode) {
+      // Draw talk hitbox for debugging
+      ctx.strokeStyle = 'rgba(0, 255, 0, 0.5)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(this.talkHitbox.x, this.talkHitbox.y, this.talkHitbox.w, this.talkHitbox.h);
+    }
+
+    return false;
+  }
+
+  update() {
+    if (Date.now() - this.lastFrameTime > this.frameDuration) {
+      this.currentFrame = (this.currentFrame + 1) % this.frameData.length;
+      this.lastFrameTime = Date.now();
+    }
+
+    // In Sprite constructor only
+    this.sortY = this.y + this.pivotY;
+  }
+
+  updateHitboxes() {
+    // Update hitbox positions based on sprite position
+    this.hitbox.x = (this.x - this.offsetX) + this.hitbox.offsetX;
+    this.hitbox.y = (this.y - this.offsetY) + this.hitbox.offsetY;
+
+    this.talkHitbox.x = (this.x - this.offsetX) + this.talkHitbox.offsetX;
+    this.talkHitbox.y = (this.y - this.offsetY) + this.talkHitbox.offsetY;
+  }
+
+  drawHitbox() {
+    ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
+    ctx.fillRect(this.hitbox.x, this.hitbox.y, this.hitbox.w, this.hitbox.h);
+  }
+
+  drawPivot() { 
+    ctx.fillStyle = 'blue';
+    ctx.fillRect(this.hitbox.x, this.y + this.pivotY, 6, 6);
+  }
+
+  getImage() {
+    const path = this.frameData[this.currentFrame];
+    let obj = pixelart;
+    for (let key of path) {
+      obj = obj[key];
+      if (obj === undefined) return null;
+    }
+    return obj;
+  }
+
+  draw() {
+    this.update();
+    this.updateHitboxes();
+    if(this.detectPlayer() && app.scene === 'game' && keysTyped.z) {
+      // Trigger dialogue or interaction logic here
+      app.scene = 'dialogue';
+      dialogue.init(this.name, this.dialoguePath[this.talkIndex]);
+    }
+    const img = this.getImage();
+    if (img) {
+      ctx.drawImage(img, this.x, this.y);
+    }
+
+    if (app.devMode && keys['Shift']) {
+      this.drawHitbox();
+      this.drawPivot();
+    }
   }
 }
 
 class Player {
-  constructor(config){
-    this.x = config.x;
-    this.y = config.y;
-    this.hitbox = {x: this.x, y: this.y, w: 86, h: 46};
+  constructor(config) {
     this.vx = 0;
     this.vy = 0;
     this.speed = 6;
     
-    this.image = ['sprites','player','idle_south',0];
     this.direction = 'south';
+    this.image = ['sprites', 'player', 'idle_south', 0];
+
+    // Hitbox = source of truth (top-left)
+    this.hitbox = {
+      x: config.x || 100,
+      y: config.y || 100,
+      w: 46,
+      h: 46
+    };
+
+    // Visual offset from hitbox top-left
+    this.visualOffset = {
+      x: 40,
+      y: -12
+    };
   }
-  
-  update(){
-    // Lock input during fade-out only
-    if (
-      app.transition &&
-      app.transition.active &&
-      app.transition.phase === 'fadeOut'
-    )
-    return;
-    
+
+  get sortY() {
+    return this.hitbox.y + this.hitbox.h;   // feet position
+  }
+
+  update() {
+    if (app.transition?.active && app.transition.phase === 'fadeOut') return;
+
     this.vx = this.vy = 0;
     let speed = this.speed;
-    
+
     const north = !!keys['ArrowUp'] || !!keys['w'];
     const south = !!keys['ArrowDown'] || !!keys['s'];
-    const west = !!keys['ArrowLeft'] || !!keys['a'];
-    const east = !!keys['ArrowRight'] || !!keys['d'];
-    
-    if (north && !this._prevNorth) {
-      if (south) {
-        this.vertFirst = 'south';
-        this.vertSecond = 'north';
-      } else {
-        this.vertFirst = this.vertSecond = null;
-      }
-    }
-    if (south && !this._prevSouth) {
-      if (north) {
-        this.vertFirst = 'north';
-        this.vertSecond = 'south';
-      } else {
-        this.vertFirst = this.vertSecond = null;
-      }
-    }
-    if (!(north && south)) {
-      this.vertFirst = this.vertSecond = null;
-    }
-    
-    if (west && !this._prevWest) {
-      if (east) {
-        this.horzFirst = 'east';
-        this.horzSecond = 'west';
-      } else {
-        this.horzFirst = this.horzSecond = null;
-      }
-    }
-    if (east && !this._prevEast) {
-      if (west) {
-        this.horzFirst = 'west';
-        this.horzSecond = 'east';
-      } else {
-        this.horzFirst = this.horzSecond = null;
-      }
-    }
-    if (!(west && east)) {
-      this.horzFirst = this.horzSecond = null;
-    }
-    
-    let horz = 0,
-    vert = 0;
-    const isVertOpposing = north && south;
-    const isHorzOpposing = west && east;
-    
-    if (isVertOpposing) {
-      vert = this.vertSecond === 'north' ? -1 : 1;
-      speed *= 0.8;
-    } else {
-      if (north) vert -= 1;
-      if (south) vert += 1;
-    }
-    if (isHorzOpposing) {
-      horz = this.horzSecond === 'west' ? -1 : 1;
-      speed *= 0.8;
-    } else {
-      if (west) horz -= 1;
-      if (east) horz += 1;
-    }
-    
+    const west  = !!keys['ArrowLeft'] || !!keys['a'];
+    const east  = !!keys['ArrowRight'] || !!keys['d'];
+
+    // Direction logic
+    let horz = 0, vert = 0;
+
+    if (north) vert -= 1;
+    if (south) vert += 1;
+    if (west)  horz -= 1;
+    if (east)  horz += 1;
+
     if (horz !== 0 || vert !== 0) {
       const len = Math.hypot(horz, vert);
       this.vx = (horz / len) * speed;
       this.vy = (vert / len) * speed;
-      const isPureOpposingVert = isVertOpposing && horz === 0;
-      const isPureOpposingHorz = isHorzOpposing && vert === 0;
-      if (isPureOpposingVert) {
-        this.direction = this.vertFirst;
-        this.primarydirection = this.vertSecond;
-      } else if (isPureOpposingHorz) {
-        this.direction = this.horzFirst;
-        this.primarydirection = this.horzSecond;
-      } else if (horz === 0 || vert === 0) {
-        this.direction =
-        vert < 0 ? 'north' : vert > 0 ? 'south' : horz < 0 ? 'west' : 'east';
-        this.primarydirection = this.direction;
-      }
-      if (horz !== 0 && vert !== 0) {
-        if (north) this.direction = 'north';
-        else if (south) this.direction = 'south';
-        if (west) this.direction += 'west';
-        else if (east) this.direction += 'east';
+
+      // Update facing direction
+      if (horz === 0) {
+        this.direction = vert < 0 ? 'north' : 'south';
+      } else if (vert === 0) {
+        this.direction = horz < 0 ? 'west' : 'east';
+      } else {
+        // Diagonal
+        this.direction = (vert < 0 ? 'north' : 'south') + (horz < 0 ? 'west' : 'east');
       }
     }
-    
-    //const r = this.size / 2;
-    //const moved = moveAndSlide(this.x, this.y, r, this.vx, this.vy);
-    this.hitbox.x += this.vx;
-    this.hitbox.y += this.vy;
 
-    //constrain player to map bounds
+    // Collision
+    const moved = this.checkCollision(
+      this.hitbox.x,
+      this.hitbox.y,
+      this.hitbox.w,
+      this.hitbox.h,
+      this.vx,
+      this.vy
+    );
+
+    this.hitbox.x += moved.vx;
+    this.hitbox.y += moved.vy;
+
+    // World bounds
     this.hitbox.x = Math.max(0, Math.min(this.hitbox.x, app.map.width - this.hitbox.w));
     this.hitbox.y = Math.max(0, Math.min(this.hitbox.y, app.map.height - this.hitbox.h));
-    this.adjsutToHitbox();
-    
-    this._prevNorth = north;
-    this._prevSouth = south;
-    this._prevWest = west;
-    this._prevEast = east;
   }
-  adjsutToHitbox() {
-    if (this.direction === 'north' || this.direction === 'south') {
-      this.x = this.hitbox.x - 16;  
-      this.y = this.hitbox.y;
+
+  checkCollision(x, y, w, h, vx, vy) {
+    const TILE = 64;
+    const result = { vx, vy };
+
+    // Horizontal
+    if (vx > 0) {
+      const col = Math.floor((x + w + vx) / TILE);
+      const rowTop = Math.floor((y + 1) / TILE);
+      const rowBot = Math.floor((y + h - 1) / TILE);
+      if (app.map.isSolid(col, rowTop) || app.map.isSolid(col, rowBot)) {
+        result.vx = col * TILE - w - x;
+      }
+    } else if (vx < 0) {
+      const col = Math.floor((x + vx) / TILE);
+      const rowTop = Math.floor((y + 1) / TILE);
+      const rowBot = Math.floor((y + h - 1) / TILE);
+      if (app.map.isSolid(col, rowTop) || app.map.isSolid(col, rowBot)) {
+        result.vx = (col + 1) * TILE - x;
+      }
     }
-    if (this.direction === 'east' || this.direction === 'west') {
-      this.x = this.hitbox.x - 16;  
-      this.y = this.hitbox.y;
+
+    // Vertical
+    if (vy > 0) {
+      const row = Math.floor((y + h + vy) / TILE);
+      const colLeft = Math.floor((x + 1) / TILE);
+      const colRight = Math.floor((x + w - 1) / TILE);
+      if (app.map.isSolid(colLeft, row) || app.map.isSolid(colRight, row)) {
+        result.vy = row * TILE - h - y;
+      }
+    } else if (vy < 0) {
+      const row = Math.floor((y + vy) / TILE);
+      const colLeft = Math.floor((x + 1) / TILE);
+      const colRight = Math.floor((x + w - 1) / TILE);
+      if (app.map.isSolid(colLeft, row) || app.map.isSolid(colRight, row)) {
+        result.vy = (row + 1) * TILE - y;
+      }
     }
-    if (this.direction === 'northeast' || this.direction === 'southwest') {
-      this.x = this.hitbox.x - 8;  
-      this.y = this.hitbox.y;
-    }
-    if (this.direction === 'northwest' || this.direction === 'southeast') {
-      this.x = this.hitbox.x - 8;  
-      this.y = this.hitbox.y + 6;
+
+    return result;
+  }
+
+  checkPortals() {
+    const TILE = 64;
+    const left   = Math.floor(this.hitbox.x / TILE);
+    const right  = Math.floor((this.hitbox.x + this.hitbox.w - 1) / TILE);
+    const top    = Math.floor(this.hitbox.y / TILE);
+    const bottom = Math.floor((this.hitbox.y + this.hitbox.h - 1) / TILE);
+
+    for (let row = top; row <= bottom; row++) {
+      for (let col = left; col <= right; col++) {
+        if (row < 0 || row >= app.map.map.length || col < 0 || col >= app.map.map[0].length) continue;
+
+        const char = app.map.map[row][col];
+        const portalData = app.map.portals[char];
+
+        if (portalData) {
+          console.log(`Portal activated → ${portalData.dest} (${char})`);
+
+          // Load new map and place player
+          app.map.loadMap(portalData.dest, char, portalData.direction);
+          app.transitionData.active = true;
+          return; // Only trigger once per frame
+        }
+      }
     }
   }
-  updateHitbox() {
-    if (this.direction === 'north' || this.direction === 'south') {
-      this.hitbox.x = this.x + 16; 
-      this.hitbox.y = this.y;
-      this.hitbox.w = 60;
-      this.hitbox.h = 46;
-    }
-    if (this.direction === 'east' || this.direction === 'west') {
-      this.hitbox.x = this.x + 16; 
-      this.hitbox.y = this.y;
-      this.hitbox.w = 52;
-      this.hitbox.h = 48;
-    }
-    if (this.direction === 'northeast' || this.direction === 'southwest') {
-      this.hitbox.x = this.x + 8; 
-      this.hitbox.y = this.y;
-      this.hitbox.w = 60;
-      this.hitbox.h = 48;
-    }
-    if (this.direction === 'northwest' || this.direction === 'southeast') {
-      this.hitbox.x = this.x + 8; 
-      this.hitbox.y = this.y - 6;
-      this.hitbox.w = 60;
-      this.hitbox.h = 48;
-    }
+
+  updateVisuals() {
+    // Update sprite based on direction
+    const dirMap = {
+      north: 'idle_north',
+      south: 'idle_south',
+      east: 'idle_east',
+      west: 'idle_west',
+      northwest: 'idle_northwest',
+      northeast: 'idle_northeast',
+      southwest: 'idle_southwest',
+      southeast: 'idle_southeast'
+    };
+    this.image[2] = dirMap[this.direction] || 'idle_south';
   }
-  display(){
-    
-    if (this.direction === 'north') this.image[2] = 'idle_north';
-    else if (this.direction === 'south') this.image[2] = 'idle_south';
-    else if (this.direction === 'east') this.image[2] = 'idle_east';
-    else if (this.direction === 'west') this.image[2] = 'idle_west';
-    else if (this.direction === 'southwest') this.image[2] = 'idle_southwest';
-    else if (this.direction === 'southeast') this.image[2] = 'idle_southeast';
-    else if (this.direction === 'northwest') this.image[2] = 'idle_northwest';
-    else if (this.direction === 'northeast') this.image[2] = 'idle_northeast';
-    
-    if(app.devMode) {
-      ctx.fillStyle = 'red';
+
+  getVisualPos() {
+    return {
+      x: this.hitbox.x + this.visualOffset.x,
+      y: this.hitbox.y + this.visualOffset.y
+    };
+  }
+
+  display() {
+    this.updateVisuals();
+    const pos = this.getVisualPos();
+
+    if (app.devMode) {
+      // Collision box
+      ctx.fillStyle = 'rgba(255, 0, 0, 0.4)';
       ctx.fillRect(this.hitbox.x, this.hitbox.y, this.hitbox.w, this.hitbox.h);
+      
+      // Center point
+      ctx.fillStyle = 'yellow';
+      ctx.fillRect(this.hitbox.x + this.hitbox.w/2 - 3, this.hitbox.y + this.hitbox.h/2 - 3, 6, 6);
     }
-    
-    ctx.drawImage(pixelart[this.image[0]][this.image[1]][this.image[2]][this.image[3]], this.x-64, this.y-46);
+
+    ctx.drawImage(
+      pixelart[this.image[0]][this.image[1]][this.image[2]][this.image[3]],
+      pos.x - 64,
+      pos.y - 46
+    );
   }
-  run(){
+
+  run() {
+    this.checkPortals();
     this.update();
-    this.updateHitbox();
-    this.display();
   }
 }
 
@@ -489,14 +756,33 @@ const app = {
   devMode: true, // Set to false to hide hitboxes and debug info
   scene: 'loading',
   player: new Player({x: 100, y: 100}),
+  //sprites: [],
   map: new World({data: mapdata.map.room.test, room: 'room'}),
   transitionData: {
     opacity: 1
   },
+  cutscene: {
+    active: false,
+    currentScene: null,     // name or id of the cutscene
+    step: 0,                // current step in the script
+    timer: 0,
+    skippable: true,
+    onComplete: null        // callback when cutscene ends
+  },
+  startCutscene: function(sceneName, onComplete) {
+    this.cutscene.active = true;
+    this.cutscene.currentScene = sceneName;
+    this.cutscene.step = 0;
+    this.cutscene.timer = 0;
+    this.cutscene.onComplete = onComplete;
+    
+    app.scene = 'cutscene';           // new scene mode
+    app.player.vx = app.player.vy = 0; // freeze player
+  },
   transition: function() {
     if(this.transitionData.active) {
       ctx.fillStyle = 'rgba(0, 0, 0, ' + this.transitionData.opacity + ')';
-      ctx.fillRect(-64, -64, app.map.width + 128, app.map.height + 128);
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
       this.transitionData.opacity -= 0.05;
       if(this.transitionData.opacity <= 0) {
         this.transitionData.active = false;
@@ -506,12 +792,43 @@ const app = {
   },
   runGame: function() {
     // Game logic here
-    ctx.clearRect(-64, -64, app.map.width + 128, app.map.height + 128); // Clear with extra padding for lookahead
-    this.map.camera();
-    this.map.run();
-    this.player.run();
+    ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear with extra padding for lookahead
+    ctx.save();
+
+      this.map.camera();
+      this.map.run();
+      
+      if (this.scene === 'game') {
+        this.player.run();
+      } // so rewind repeat it
+
+      let entities = [
+        ...this.map.objects,
+        this.player
+      ];
+
+      entities.sort((a, b) => (a.sortY || 0) - (b.sortY || 0));
+
+      for (let entity of entities) {
+        if (entity.draw) entity.draw();
+        else if (entity.display) {
+          for (let obj of this.map.objects) {
+            obj.checkCollision();
+          }
+          entity.display();
+        } // player
+      }
+      
+    ctx.restore();
 
     this.transition();
+
+    if (!game.flags.sawIntro) {
+      app.startCutscene("exampleIntro", () => {
+        console.log("Cutscene finished!");
+      });
+      game.flags.sawIntro = true;
+    }
   },
   loadingAnimation: function() {
     ctx.fillStyle = '#000000';
@@ -521,14 +838,49 @@ const app = {
     ctx.fillStyle = '#ffffff';
     ctx.fillText('Loading...', canvas.width / 2, canvas.height / 2);
   },
+  createEntity: function(entityName, x, y) {
+    for (let sprite in spritedata) {
+      console.log(`Checking sprite: ${spritedata[sprite].name} against ${entityName}`);
+      //find sprite
+      if(spritedata[sprite].name === entityName) {
+        const newEntity = new Sprite({
+          x: x,
+          y: y,
+          frameData: spritedata[sprite].frames,
+          frameDuration: spritedata[sprite].frameDuration || 200,
+          pivotY: spritedata[sprite].pivotY,
+          data: spritedata[sprite]
+        });
+        //add to map objects for sorting and rendering
+        this.map.objects.push(newEntity);
+        return newEntity;
+      }
+    }
+    console.warn(`Entity "${entityName}" not found in spriteData.`);
+    return null;
+  },
   run: function() {
     switch (this.scene) {
       case 'loading':
-      loading();
-      this.loadingAnimation();
-      break;
+        loading();
+        this.loadingAnimation();
+        break;
       case 'game':
-      this.runGame();
+        this.runGame(); 
+        break;
+      case 'dialogue':
+        this.runGame(); // still show game in background
+        dialogue.runDialogue();
+
+        if (!dialogue.active) {
+          this.scene = 'game'; // return to game scene when dialogue ends
+        }
+        break;
+      case 'cutscene':
+        this.runGame();           // still render world
+        cutsceneManager.run();    // run cutscene logic
+        dialogue.runDialogue();
+        break;
     }
   }
 }
