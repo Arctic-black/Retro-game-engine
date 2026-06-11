@@ -167,6 +167,7 @@ function loading() {
   }
 }
 
+
 class World {
   constructor(config){
     this.map = config.data.map;
@@ -187,24 +188,25 @@ class World {
       x: canvas.width / 2,
       y: canvas.height / 2,
       lookahead: 46,
-      lerpSpeed: 0.2
+      lerpSpeed: 0.2,
+      focus: null
     };
   }
 
   camera() {
-    let player = app.player.hitbox;
+    let focus = this.camdata.focus || app.player.hitbox;
     this.width = this.map[0].length * 64;
     this.height = this.map.length * 64;
 
     let dx = 0,
       dy = 0;
-    if (player.direction === 'east') dx = this.camdata.lookahead;
-    if (player.direction === 'west') dx = -this.camdata.lookahead;
-    if (player.direction === 'south') dy = this.camdata.lookahead;
-    if (player.direction === 'north') dy = -this.camdata.lookahead;
+    if (focus.direction === 'east') dx = this.camdata.lookahead;
+    if (focus.direction === 'west') dx = -this.camdata.lookahead;
+    if (focus.direction === 'south') dy = this.camdata.lookahead;
+    if (focus.direction === 'north') dy = -this.camdata.lookahead;
     
-    let camTargetX = player.x - canvas.width / 2 + dx;
-    let camTargetY = player.y - canvas.height / 2 + dy;
+    let camTargetX = focus.x - canvas.width / 2 + dx;
+    let camTargetY = focus.y - canvas.height / 2 + dy;
     
     this.camdata.x += (camTargetX - this.camdata.x) * this.camdata.lerpSpeed;
     this.camdata.y += (camTargetY - this.camdata.y) * this.camdata.lerpSpeed;
@@ -388,13 +390,16 @@ class World {
   }
   
   run(){
-    if (this.initiate) this.loadSprites();
+    if (this.initiate) {
+      //this.camdata.focus = app.player.hitbox;
+      this.loadSprites();
+    };
 
     this.drawGround();
   }
 }
 
-class Sprite {aw
+class Sprite {
   constructor(config) {
     this.x = config.x || 0; 
     this.y = config.y || 0;
@@ -403,20 +408,22 @@ class Sprite {aw
     this.currentFrame = 0;
     this.lastFrameTime = Date.now();
     this.name = config.data.name || 'unknown';
+    this.offsetX = config.data.offsetX;
+    this.offsetY = config.data.offsetY;
 
     //dialogue properties
     this.talkIndex = 0;
     this.dialoguePath = config.data.dialogue || null; //should return array
 
     this.hitbox = {
-      x: (this.x - config.data.offsetX) + (config.data.hitboxOffset.x || 0),
-      y: (this.y - config.data.offsetY) + (config.data.hitboxOffset.y || 0),
+      x: (this.x - this.offsetX) + (config.data.hitboxOffset.x || 0),
+      y: (this.y - this.offsetY) + (config.data.hitboxOffset.y || 0),
       w: config.data.hitboxOffset.w || 64,
       h: config.data.hitboxOffset.h || 64,
-      solid: true
+      solid: true,
+      offsetX: config.data.hitboxOffset.x || 0,
+      offsetY: config.data.hitboxOffset.y || 0
     };
-
-    console.log(`Loaded sprite "${this.name}" with hitbox:`, this.hitbox, 'from config:', config);
 
     let offsetX = -16;
     let offsetY = -16;
@@ -431,10 +438,13 @@ class Sprite {aw
     }
 
     this.talkHitbox = {
-      x: (this.x - config.data.offsetX) + offsetX,
-      y: (this.y - config.data.offsetY) + offsetY,
+      x: (this.x - this.offsetX) + offsetX,
+      y: (this.y - this.offsetY) + offsetY,
       w: offsetW,
-      h: offsetH
+      h: offsetH,
+      solid: false,
+      offsetX: offsetX,
+      offsetY: offsetY
     };
 
     // Crucial for depth sorting
@@ -490,6 +500,18 @@ class Sprite {aw
       this.currentFrame = (this.currentFrame + 1) % this.frameData.length;
       this.lastFrameTime = Date.now();
     }
+
+    // In Sprite constructor only
+    this.sortY = this.y + this.pivotY;
+  }
+
+  updateHitboxes() {
+    // Update hitbox positions based on sprite position
+    this.hitbox.x = (this.x - this.offsetX) + this.hitbox.offsetX;
+    this.hitbox.y = (this.y - this.offsetY) + this.hitbox.offsetY;
+
+    this.talkHitbox.x = (this.x - this.offsetX) + this.talkHitbox.offsetX;
+    this.talkHitbox.y = (this.y - this.offsetY) + this.talkHitbox.offsetY;
   }
 
   drawHitbox() {
@@ -514,6 +536,7 @@ class Sprite {aw
 
   draw() {
     this.update();
+    this.updateHitboxes();
     if(this.detectPlayer() && app.scene !== 'dialogue' && keysTyped.z) {
       // Trigger dialogue or interaction logic here
       if (app.scene !== 'dialogue') {
@@ -739,6 +762,24 @@ const app = {
   transitionData: {
     opacity: 1
   },
+  cutscene: {
+    active: false,
+    currentScene: null,     // name or id of the cutscene
+    step: 0,                // current step in the script
+    timer: 0,
+    skippable: true,
+    onComplete: null        // callback when cutscene ends
+  },
+  startCutscene: function(sceneName, onComplete) {
+    this.cutscene.active = true;
+    this.cutscene.currentScene = sceneName;
+    this.cutscene.step = 0;
+    this.cutscene.timer = 0;
+    this.cutscene.onComplete = onComplete;
+    
+    app.scene = 'cutscene';           // new scene mode
+    app.player.vx = app.player.vy = 0; // freeze player
+  },
   transition: function() {
     if(this.transitionData.active) {
       ctx.fillStyle = 'rgba(0, 0, 0, ' + this.transitionData.opacity + ')';
@@ -756,9 +797,10 @@ const app = {
     ctx.save();
       this.map.camera();
       this.map.run();
-      if (app.scene !== 'dialogue') {
+      
+      if (this.scene === 'game') {
         this.player.run();
-      }
+      } // so rewind repeat it
 
       let entities = [
         ...this.map.objects,
@@ -768,7 +810,7 @@ const app = {
       entities.sort((a, b) => (a.sortY || 0) - (b.sortY || 0));
 
       for (let entity of entities) {
-        if (entity.draw) entity.draw();           // sprites
+        if (entity.draw) entity.draw();
         else if (entity.display) {
           for (let obj of this.map.objects) {
             obj.checkCollision();
@@ -780,6 +822,13 @@ const app = {
     ctx.restore();
 
     this.transition();
+
+    if (!game.flags.sawIntro) {
+      app.startCutscene("exampleIntro", () => {
+        console.log("Cutscene finished!");
+      });
+      game.flags.sawIntro = true;
+    }
   },
   loadingAnimation: function() {
     ctx.fillStyle = '#000000';
@@ -788,6 +837,27 @@ const app = {
     ctx.font = '20px Arial';
     ctx.fillStyle = '#ffffff';
     ctx.fillText('Loading...', canvas.width / 2, canvas.height / 2);
+  },
+  createEntity: function(entityName, x, y) {
+    for (let sprite in spritedata) {
+      console.log(`Checking sprite: ${spritedata[sprite].name} against ${entityName}`);
+      //find sprite
+      if(spritedata[sprite].name === entityName) {
+        const newEntity = new Sprite({
+          x: x,
+          y: y,
+          frameData: spritedata[sprite].frames,
+          frameDuration: spritedata[sprite].frameDuration || 200,
+          pivotY: spritedata[sprite].pivotY,
+          data: spritedata[sprite]
+        });
+        //add to map objects for sorting and rendering
+        this.map.objects.push(newEntity);
+        return newEntity;
+      }
+    }
+    console.warn(`Entity "${entityName}" not found in spriteData.`);
+    return null;
   },
   run: function() {
     switch (this.scene) {
@@ -800,6 +870,15 @@ const app = {
         break;
       case 'dialogue':
         this.runGame(); // still show game in background
+        dialogue.runDialogue();
+
+        if (!dialogue.active) {
+          this.scene = 'game'; // return to game scene when dialogue ends
+        }
+        break;
+      case 'cutscene':
+        this.runGame();           // still render world
+        cutsceneManager.run();    // run cutscene logic
         dialogue.runDialogue();
         break;
     }

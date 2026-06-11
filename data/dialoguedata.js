@@ -128,5 +128,41 @@ const dialogueData = {
         }
       }
     }
-  }
+  },
+
+  //cutscene dialogue nodes
+  bobCutscene: {
+    bob: {
+      opening: {
+        lines: [
+          "Bob is here!",
+          "Hello there, my young apprentice!"
+        ],
+        options: [],
+        next: null //next node
+      }
+    },
+    player: { 
+      response: {
+        lines: [],
+        options: [
+          {
+            text: "Hi Bob!",
+            next: null,
+            condition: () => true
+          },
+          {
+            text: "Ignore Bob.",
+            next: null,
+            condition: () => true
+          },
+          {
+            text: "Who's Bob?",
+            next: null,
+            condition: () => true
+          }
+        ],
+      }
+    }
+  } 
 };

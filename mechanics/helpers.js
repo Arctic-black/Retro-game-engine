@@ -16,6 +16,7 @@ const game = {
     metSpeakerBefore: false,
     ignoredSpeaker: false,
     gaveSteel: false,
+    sawIntro: false,
     // quest progress, reputation, etc.
   },
   variables: {
@@ -277,7 +278,6 @@ let dialogue = {
         Object.assign(game.flags, this.node.setFlags);
       }
       this.active = false;
-      app.scene = 'game';
 
       keys.z = false;
     }
